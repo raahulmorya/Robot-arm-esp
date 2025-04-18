@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Advanced Robot Arm Control</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial;
+        }
+
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+        }
+
+        button {
+            padding: 8px 12px;
+            margin: 5px;
+            cursor: pointer;
+        }
+
+        .status {
+            margin: 10px 0;
+            font-weight: bold;
+        }
+
+        .recording {
+            color: #ff5555;
+        }
+
+        .playing {
+            color: #55ff55;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="ui">
+        <h2>🤖 Robot Arm Control</h2>
+        <div>
+            <button id="voiceBtn">🎤 Voice Control</button>
+            <button id="recordBtn">⏺️ Record</button>
+            <button id="playBtn">▶️ Play</button>
+        </div>
+        <div class="status">
+            Voice: <span id="voiceStatus">OFF</span> |
+            Rec: <span id="recStatus">OFF</span> |
+            Play: <span id="playStatus">OFF</span>
+        </div>
+        <div>
+            <input type="text" id="espIp" placeholder="ESP IP" value="192.168.137.253">
+            <button id="connectBtn">Connect</button>
+        </div>
+        <div id="manualControl" style="margin-top:20px;background:#333;padding:10px;border-radius:5px;">
+            <h3>Manual Angle Control</h3>
+            <div>
+                <label>Base: <input type="number" id="baseAngle" min="1" max="115" value="58" step="1"></label>
+                <button onclick="setManualAngle('base')">Set</button>
+            </div>
+            <div>
+                <label>Shoulder: <input type="number" id="shoulderAngle" min="5" max="80" value="42" step="1"></label>
+                <button onclick="setManualAngle('shoulder')">Set</button>
+            </div>
+            <div>
+                <label>Elbow: <input type="number" id="elbowAngle" min="11" max="85" value="48" step="1"></label>
+                <button onclick="setManualAngle('elbow')">Set</button>
+            </div>
+            <div>
+                <label>Gripper: <input type="number" id="gripperAngle" min="30" max="99" value="64" step="1"></label>
+                <button onclick="setManualAngle('gripper')">Set</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Three.js will attach here -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        // ========================
+        // 3D Scene Setup
+        // ========================
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Lighting
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(5, 10, 7);
+        scene.add(light);
+        scene.add(new THREE.AmbientLight(0x404040));
+
+        // Grid Helper
+        scene.add(new THREE.GridHelper(10, 10));
+
+        // Robot Arm Parts
+        const armParts = {
+            base: createPart(1, 0.5, 1, 0x888888),
+            shoulder: createPart(0.5, 1.5, 0.5, 0x3498db),
+            elbow: createPart(0.5, 1.2, 0.5, 0xe74c3c),
+            gripper: createPart(0.3, 0.5, 0.3, 0x2ecc71)
+        };
+
+        // Position parts
+        armParts.base.position.y = 0.5;
+        armParts.shoulder.position.y = 1.75;
+        armParts.elbow.position.y = 3.2;
+        armParts.gripper.position.y = 3.7;
+
+        // Add to scene
+        Object.values(armParts).forEach(part => scene.add(part));
+
+        // Camera position
+        camera.position.set(5, 3, 5);
+        camera.lookAt(0, 2, 0);
+
+        // Controls
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+        // ========================
+        // Inverse Kinematics
+        // ========================
+    function solveIK(targetX, targetY, targetZ) {
+        // Convert to arm-relative coordinates
+        const x = targetX;
+        const z = targetZ;
+        let y = targetY - 0.5; // Adjust for base height
+
+        // Your arm's specific measurements (UPDATE THESE!)
+        const baseHeight = 0.5;
+        const upperArmLength = 1.5; // Shoulder to elbow
+        const lowerArmLength = 1.2; // Elbow to gripper
+        const totalReach = upperArmLength + lowerArmLength;
+
+        // 1. Base rotation (simple)
+        const baseAngle = THREE.MathUtils.radToDeg(Math.atan2(x, z));
+
+        // 2. Calculate distance in arm plane
+        const distance = Math.sqrt(x * x + z * z);
+
+        // 3. Shoulder and elbow angles
+        const D = (distance * distance + y * y - upperArmLength * upperArmLength - lowerArmLength * lowerArmLength) /
+            (2 * upperArmLength * lowerArmLength);
+
+        // Clamp to avoid NaN errors
+        const clampedD = Math.max(-1, Math.min(1, D));
+
+        const elbowAngle = -THREE.MathUtils.radToDeg(Math.acos(clampedD));
+
+        const shoulderAngle = THREE.MathUtils.radToDeg(Math.atan2(y, distance) -
+            Math.atan2(lowerArmLength * Math.sin(Math.acos(clampedD)),
+                upperArmLength + lowerArmLength * clampedD));
+
+        return {
+            base: baseAngle,
+            shoulder: 90 - shoulderAngle, // Adjusted for your arm's zero position
+            elbow: elbowAngle,
+            gripper: armParts.gripper.userData.angle || 0 // Keep current
+        };
+    }
+
+        // ========================
+        // Manual angle
+        // ========================
+
+    function setManualAngle(joint) {
+        const angle = parseFloat(document.getElementById(`${joint}Angle`).value);
+        const angles = {
+            base: armParts.base.userData.angle || 58,
+            shoulder: armParts.shoulder.userData.angle || 42,
+            elbow: armParts.elbow.userData.angle || 48,
+            gripper: armParts.gripper.userData.angle || 64
+        };
+
+        angles[joint] = angle;
+
+        // Update 3D model
+        armParts.base.rotation.y = THREE.MathUtils.degToRad(angles.base - 58);
+        armParts.shoulder.rotation.z = THREE.MathUtils.degToRad(angles.shoulder - 42);
+        armParts.elbow.rotation.z = THREE.MathUtils.degToRad(angles.elbow - 48);
+
+        // Store current angles
+        Object.keys(angles).forEach(j => {
+            armParts[j].userData.angle = angles[j];
+        });
+
+        // Send to ESP8266
+        const servoMap = { base: 0, shoulder: 1, elbow: 2, gripper: 3 };
+        sendCommand('setpos', { servo: servoMap[joint], angle });
+    }
+
+        // ========================
+        // Voice Control
+        // ========================
+        const voiceCommands = {
+            "home": () => sendCommand('control', { pos: 'home' }),
+            "grab": () => setGripper(90),
+            "release": () => setGripper(30),
+            "move to": (x, y, z) => {
+                const angles = solveIK([x, y, z]);
+                updateArm(angles);
+            }
+        };
+
+        function startVoiceControl() {
+            const recognition = new webkitSpeechRecognition();
+            recognition.continuous = true;
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase();
+                console.log(transcript);
+                document.getElementById('voiceStatus').textContent = transcript;
+
+                // Process commands
+                if (transcript.includes("home")) voiceCommands.home();
+                else if (transcript.includes("grab")) voiceCommands.grab();
+                else if (transcript.includes("release")) voiceCommands.release();
+                else if (transcript.includes("move to")) {
+                    const coords = transcript.match(/-?\d+/g);
+                    if (coords && coords.length >= 3) {
+                        voiceCommands["move to"](parseInt(coords[0]), parseInt(coords[1]), parseInt(coords[2]));
+                    }
+                }
+            };
+
+            recognition.start();
+            return recognition;
+        }
+
+        // ========================
+        // ESP8266 Communication
+        // ========================
+        let espIp = "192.168.137.253";
+        let voiceRecognition = null;
+
+        document.getElementById('connectBtn').addEventListener('click', () => {
+            espIp = document.getElementById('espIp').value;
+            fetch(`http://${espIp}/api/status`);
+        });
+
+        document.getElementById('voiceBtn').addEventListener('click', () => {
+            if (voiceRecognition) {
+                voiceRecognition.stop();
+                voiceRecognition = null;
+                document.getElementById('voiceStatus').textContent = "OFF";
+            } else {
+                voiceRecognition = startVoiceControl();
+                document.getElementById('voiceStatus').textContent = "LISTENING";
+            }
+        });
+
+        function sendCommand(endpoint, data) {
+            const params = new URLSearchParams(data);
+            fetch(`http://${espIp}/api/${endpoint}?${params}`);
+        }
+
+        // ========================
+        // Animation Loop
+        // ========================
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+            controls.update();
+        }
+        animate();
+
+        // Helper functions
+        function createPart(w, h, d, color) {
+            const geometry = new THREE.BoxGeometry(w, h, d);
+            const material = new THREE.MeshPhongMaterial({ color });
+            return new THREE.Mesh(geometry, material);
+        }
+
+        function updateArm(angles) {
+            // Update 3D model
+            armParts.base.rotation.y = THREE.MathUtils.degToRad(angles.base);
+            armParts.shoulder.rotation.z = THREE.MathUtils.degToRad(angles.shoulder);
+            armParts.elbow.rotation.z = THREE.MathUtils.degToRad(angles.elbow);
+
+            // Send to ESP8266
+            sendCommand('setpos', { servo: 0, angle: angles.base });
+            sendCommand('setpos', { servo: 1, angle: angles.shoulder });
+            sendCommand('setpos', { servo: 2, angle: angles.elbow });
+        }
+
+        function setGripper(angle) {
+            armParts.gripper.scale.y = angle / 90;
+            sendCommand('setpos', { servo: 3, angle });
+        }
+    </script>
+</body>
+
+</html>
