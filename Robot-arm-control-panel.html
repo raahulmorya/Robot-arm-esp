@@ -204,22 +204,21 @@
         light1.position.set(5, 10, 7);
         scene.add(light1);
         scene.add(new THREE.AmbientLight(0x404040));
-    const axesHelper = new THREE.AxesHelper(6); // length of each axis line
-    scene.add(axesHelper);
+        const axesHelper = new THREE.AxesHelper(6); // length of each axis line
+        scene.add(axesHelper);
         // Grid Helper
         const grid = new THREE.GridHelper(10, 10);
         scene.add(grid);
-    const rootbase = new THREE.Group();
-    rootbase.position.y = 0.1;
-    scene.add(rootbase);
+        const rootbase = new THREE.Group();
+        rootbase.position.y = 0.1;
+        scene.add(rootbase);
 
-    // rootBase geometry (Box)
-    const rootbaseGeometry = new THREE.BoxGeometry(7.0, 5, 0.2);
-    const rootbaseMaterial = new THREE.MeshPhongMaterial({ color: 0x000000 });
-    const rootbaseMesh = new THREE.Mesh(rootbaseGeometry, rootbaseMaterial);
-    // baseMesh.position.y = 0.2;
-    rootbaseMesh.rotation.x = Math.PI / 2;
-    rootbase.add(rootbaseMesh);
+        // rootBase geometry (Box)
+        const rootbaseGeometry = new THREE.BoxGeometry(7.0, 5, 0.2);
+        const rootbaseMaterial = new THREE.MeshPhongMaterial({ color: 0x000000 });
+        const rootbaseMesh = new THREE.Mesh(rootbaseGeometry, rootbaseMaterial);
+        rootbaseMesh.rotation.x = Math.PI / 2;
+        rootbase.add(rootbaseMesh);
 
         // ========================
         // Robot Arm Hierarchy
@@ -243,7 +242,7 @@
         base.add(shoulder);
 
         // Shoulder geometry
-        const shoulderGeometry = new THREE.CylinderGeometry(0.1, 0.1, 2 ,32);
+        const shoulderGeometry = new THREE.CylinderGeometry(0.1, 0.1, 2, 32);
         const shoulderMaterial = new THREE.MeshPhongMaterial({ color: 0xFFFF00 });
         const shoulderMesh = new THREE.Mesh(shoulderGeometry, shoulderMaterial);
         shoulderMesh.position.y = 0.75;
@@ -258,13 +257,13 @@
         shoulder.add(elbow);
 
         const shoulderAxes = new THREE.AxesHelper(0.8); // size 2
-            shoulder.add(shoulderAxes);
+        shoulder.add(shoulderAxes);
 
         // Elbow geometry
         const elbowGeometry = new THREE.CylinderGeometry(0.1, 0.1, 1.3, 32);
         const elbowMaterial = new THREE.MeshPhongMaterial({ color: 0xe74c3c });
         const elbowMesh = new THREE.Mesh(elbowGeometry, elbowMaterial);
-        
+
         elbowMesh.position.y = 0.5;
         elbow.add(elbowMesh);
 
@@ -283,7 +282,6 @@
         const gripperBaseGeometry = new THREE.BoxGeometry(0.2, 0.1, 0.4);
         const gripperBaseMaterial = new THREE.MeshPhongMaterial({ color: 0x2ecc71 });
         const gripperBase = new THREE.Mesh(gripperBaseGeometry, gripperBaseMaterial);
-        // gripperBase.rotation.x =  Math.PI / 2;
         gripper.add(gripperBase);
         const gripperAxes = new THREE.AxesHelper(0.8); // size 2
         gripper.add(gripperAxes);
@@ -292,31 +290,28 @@
 
         // Gripper fingers
         const leftfingerGeometry = new THREE.BoxGeometry(0.1, 0.5, 0.2);
-        // fingerGeometry.translate(-0.1, 0, 0); // Shift right by 0.5 units
         const leftfingerMaterial = new THREE.MeshPhongMaterial({ color: 0x1abc9c });
-        
+
         // const fingerPivot = new THREE.Group();
-        
+
         const leftFinger = new THREE.Mesh(leftfingerGeometry, leftfingerMaterial);
-        // leftFinger.position.set(-0.2, 0.25, 0);
         leftfingerGeometry.translate(0, 0.2, 0); // Shift right by 0.5 units
         gripper.add(leftFinger);
         const leftFingerAxes = new THREE.AxesHelper(0.8); // size 2
         leftFinger.add(leftFingerAxes);
-        
+
         // Gripper fingers
         const rightfingerGeometry = new THREE.BoxGeometry(0.1, 0.5, 0.2);
         const rightfingerMaterial = new THREE.MeshPhongMaterial({ color: 0x1abc9c });
 
         const rightFinger = new THREE.Mesh(rightfingerGeometry, rightfingerMaterial);
-        // rightFinger.position.set(0.2, 0.25, 0);
         rightfingerGeometry.translate(0, -0.2, 0);
         gripper.add(rightFinger);
         const rightFingerAxes = new THREE.AxesHelper(0.8); // size 2
-            rightFinger.add(rightFingerAxes);
+        rightFinger.add(rightFingerAxes);
 
         // Camera position
-        camera.position.set(4 , 6, 0);
+        camera.position.set(4, 6, 0);
         camera.lookAt(0, 1, 0);
 
         // Controls
@@ -333,12 +328,14 @@
         };
 
         // Motion recording
+        let isPlaying = false;
+        let playbackStartTime = 0;
+        let currentFrameIndex = 0;
+        let playbackSpeed = 1.0; // Normal speed (1.0 = 100%)
+        let playbackTimeout = null;
+
         const motionFrames = [];
         let isRecording = false;
-        let isPlaying = false;
-        let playbackSpeed = 1.0;
-        let currentFrame = 0;
-        let playInterval;
         let lastRecordTime = 0;
 
         // Voice control
@@ -365,14 +362,14 @@
             base.rotation.y = THREE.MathUtils.degToRad(currentAngles.base - 58);
 
             // Shoulder rotates around Z axis (forward/back)
-            shoulder.rotation.z = THREE.MathUtils.degToRad(380-currentAngles.shoulder);
+            shoulder.rotation.z = THREE.MathUtils.degToRad(380 - currentAngles.shoulder);
 
             // Elbow rotates around Z axis
-            elbow.rotation.z = THREE.MathUtils.degToRad(250+currentAngles.elbow );
+            elbow.rotation.z = THREE.MathUtils.degToRad(250 + currentAngles.elbow);
 
             // Gripper fingers (open/close)
-            leftFinger.rotation.z = THREE.MathUtils.degToRad(100-currentAngles.gripper);
-            rightFinger.rotation.z = THREE.MathUtils.degToRad(80+currentAngles.gripper);
+            leftFinger.rotation.z = THREE.MathUtils.degToRad(100 - currentAngles.gripper);
+            rightFinger.rotation.z = THREE.MathUtils.degToRad(80 + currentAngles.gripper);
             // rightFinger.position.x = 0.2 + gripAmount;
 
             // Update slider displays
@@ -449,34 +446,73 @@
         }
 
         function startPlayback() {
+            if (motionFrames.length === 0) {
+                alert("No motion recorded!");
+                return;
+            }
+
+            if (isPlaying) {
+                stopPlayback();
+                return;
+            }
+
             isPlaying = true;
-            currentFrame = 0;
-            document.getElementById('playStatus').textContent = "ON";
+            currentFrameIndex = 0;
+            playbackStartTime = performance.now();
+
+            document.getElementById('playStatus').textContent = "PLAYING";
             document.getElementById('playStatus').className = "playing";
 
-            playInterval = setInterval(() => {
-                if (currentFrame >= motionFrames.length) {
-                    stopPlayback();
-                    return;
-                }
+            playNextFrame();
+        }
 
-                const frame = motionFrames[currentFrame];
-                currentAngles.base = frame.angles.base;
-                currentAngles.shoulder = frame.angles.shoulder;
-                currentAngles.elbow = frame.angles.elbow;
-                currentAngles.gripper = frame.angles.gripper;
-                updateArm();
+        function playNextFrame() {
+            if (!isPlaying || currentFrameIndex >= motionFrames.length) {
+                stopPlayback();
+                return;
+            }
 
-                currentFrame++;
-            }, motionFrames[currentFrame]?.timeSinceLast / playbackSpeed || 100);
+            const frame = motionFrames[currentFrameIndex];
+
+            // Apply frame angles
+            currentAngles.base = frame.angles.base;
+            currentAngles.shoulder = frame.angles.shoulder;
+            currentAngles.elbow = frame.angles.elbow;
+            currentAngles.gripper = frame.angles.gripper;
+            updateArm();
+
+            // Calculate delay (adjusted for playback speed)
+            const delay = frame.timeSinceLast / playbackSpeed;
+
+            // Schedule next frame with precise timing
+            playbackTimeout = setTimeout(() => {
+                currentFrameIndex++;
+                playNextFrame();
+            }, delay);
         }
 
         function stopPlayback() {
             isPlaying = false;
-            clearInterval(playInterval);
-            document.getElementById('playStatus').textContent = "OFF";
+            if (playbackTimeout) {
+                clearTimeout(playbackTimeout);
+                playbackTimeout = null;
+            }
+            document.getElementById('playStatus').textContent = "STOPPED";
             document.getElementById('playStatus').className = "";
         }
+
+        // Playback speed
+        document.getElementById('speedSlider').addEventListener('input', (e) => {
+            playbackSpeed = parseInt(e.target.value) / 100;
+            document.getElementById('speedValue').textContent = `${e.target.value}%`;
+
+            // Restart playback if currently playing to apply new speed
+            if (isPlaying) {
+                const wasPlaying = isPlaying;
+                stopPlayback();
+                if (wasPlaying) startPlayback();
+            }
+        });
 
         function clearRecording() {
             if (confirm("Clear all recorded motion?")) {
@@ -637,11 +673,7 @@
             updateArm();
         });
 
-        // Playback speed
-        document.getElementById('speedSlider').addEventListener('input', (e) => {
-            playbackSpeed = parseInt(e.target.value) / 100;
-            document.getElementById('speedValue').textContent = `${e.target.value}%`;
-        });
+
 
         // Buttons
         document.getElementById('voiceBtn').addEventListener('click', toggleVoiceControl);
@@ -706,4 +738,4 @@
     </script>
 </body>
 
-</html> 
+</html>
